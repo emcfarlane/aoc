@@ -17,7 +17,7 @@ def run(input, max_score = 21, steps = 100000):
                 rolls.append((i + 1, j + 1, k + 1))
 
     cache = {}  # (p1, p2, s1, s2) -> (s1, s2)
-    stack = [[(p1, p2, 0, 0)]]
+    stack = [(p1, p2, 0, 0)]
 
     for step in range(steps):
         #print("stack", stack)
@@ -26,16 +26,11 @@ def run(input, max_score = 21, steps = 100000):
         if len(stack) == 0:
             break
 
-        frame = stack[-1]
-        if len(frame) == 0:
-            stack.pop()
-            continue
-
-        key = frame[-1]
+        key = stack[-1]
         (p1, p2, s1, s2) = key
         if s2 >= max_score:
             cache[key] = (0, 1)
-            frame.pop()
+            stack.pop()
             continue
 
         okay = True
@@ -49,16 +44,16 @@ def run(input, max_score = 21, steps = 100000):
                 totals1 += wins1
                 totals2 += wins2
             else:
-                frame.append(subkey)
+                stack.append(subkey)
                 okay = False
-                break
+                break  # complete leaves first
 
         if not okay:
             continue
 
         # Made it through rolls
         cache[key] = (totals1, totals2)
-        frame.pop()
+        stack.pop()
 
     print("cache", cache[(p1, p2, 0, 0)], len(cache))
 
