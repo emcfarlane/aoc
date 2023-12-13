@@ -9,14 +9,14 @@ const Result = struct {
     part2: u64,
 };
 
-const HandType = enum(u64) {
-    HighCard,
-    OnePair,
-    TwoPair,
-    ThreeOfAKind,
-    FullHouse,
-    FourOfAKind,
-    FiveOfAKind,
+const HandType = enum(u8) {
+    HighCard, // A + BCDE
+    OnePair, // AA + BCD
+    TwoPair, // AA + BB + C
+    ThreeOfAKind, // AAA + BC
+    FullHouse, // AAA + BB
+    FourOfAKind, // AAAA + B
+    FiveOfAKind, // AAAAA
 };
 
 fn cardValue(card: u8) u8 {
@@ -76,6 +76,48 @@ fn classify(hand: []const u8) HandType {
     return handType;
 }
 
+fn classifyJoker(hand: []const u8) HandType {
+    const handType = classify(hand);
+    var jokerCount: u8 = 0;
+    for (hand) |card| {
+        if (card == 'J') {
+            jokerCount += 1;
+        }
+    }
+    return switch (jokerCount) {
+        0 => handType,
+        1 => switch (handType) {
+            HandType.HighCard => HandType.OnePair, // J + ABCD => AA + BCD
+            HandType.OnePair => HandType.ThreeOfAKind, // J + AA + BC => AAA + BC
+            HandType.TwoPair => HandType.FullHouse, // J + AA + BB => AAA + BB
+            HandType.ThreeOfAKind => HandType.FourOfAKind, // J + AAA + B => AAAA + B
+            HandType.FourOfAKind => HandType.FiveOfAKind, // J + AAAA => AAAAA
+            else => {
+                std.debug.panic("invalid hand type: {d}", .{@intFromEnum(handType)});
+            },
+        },
+        2 => switch (handType) {
+            HandType.OnePair => HandType.ThreeOfAKind, // JJ + BCD => BBB + CD
+            HandType.TwoPair => HandType.FourOfAKind, // JJ + BB + C => BBBB + C
+            HandType.FullHouse => HandType.FiveOfAKind, // JJ + BBB => BBBBB
+            else => {
+                std.debug.panic("invalid hand type: {d}", .{@intFromEnum(handType)});
+            },
+        },
+        3 => switch (handType) {
+            HandType.ThreeOfAKind => HandType.FourOfAKind, // JJJ + BC => BBBB + C
+            HandType.FullHouse => HandType.FiveOfAKind, // JJJ + BB => BBBBB
+            else => {
+                std.debug.panic("invalid hand type: {d}", .{@intFromEnum(handType)});
+            },
+        },
+        4, 5 => HandType.FiveOfAKind,
+        else => {
+            std.debug.panic("invalid joker count: {d}", .{jokerCount});
+        },
+    };
+}
+
 fn cmpLine(ctx: void, a: []const u8, b: []const u8) bool {
     _ = ctx;
     const handTypeA = classify(a[0..5]);
@@ -95,6 +137,30 @@ fn cmpLine(ctx: void, a: []const u8, b: []const u8) bool {
     unreachable;
 }
 
+fn cmpLineJoker(ctx: void, a: []const u8, b: []const u8) bool {
+    _ = ctx;
+    const handTypeA = classifyJoker(a[0..5]);
+    const handTypeB = classifyJoker(b[0..5]);
+    if (@intFromEnum(handTypeA) != @intFromEnum(handTypeB)) {
+        return @intFromEnum(handTypeA) < @intFromEnum(handTypeB);
+    }
+    print("handTypeA: {any}\n", .{(handTypeA)});
+    print("handTypeB: {any}\n", .{(handTypeB)});
+    for (0..5) |i| {
+        const cardA = cardValue(a[i]);
+        const cardB = cardValue(b[i]);
+        if (cardA != cardB) {
+            if (a[i] == 'J') {
+                return true;
+            } else if (b[i] == 'J') {
+                return false;
+            }
+            return cardA < cardB;
+        }
+    }
+    unreachable;
+}
+
 fn run(src: []const u8, allocator: std.mem.Allocator) !Result {
     print("\n", .{});
     var result: Result = std.mem.zeroes(Result);
@@ -106,7 +172,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !Result {
         try lines.append(line);
     }
 
-    // SORT
+    // Sort part 1
     std.sort.heap([]const u8, lines.items, {}, cmpLine);
     for (lines.items, 0..) |line, pos| {
         const bid = try std.fmt.parseInt(u64, line[6..], 10);
@@ -114,7 +180,14 @@ fn run(src: []const u8, allocator: std.mem.Allocator) !Result {
         result.part1 += bid * rank;
         print("{s}\n", .{line});
     }
-    result.part2 = 0;
+    // Sort part 2
+    std.sort.heap([]const u8, lines.items, {}, cmpLineJoker);
+    for (lines.items, 0..) |line, pos| {
+        const bid = try std.fmt.parseInt(u64, line[6..], 10);
+        const rank = pos + 1;
+        result.part2 += bid * rank;
+        print("{s}\n", .{line});
+    }
     return result;
 }
 
@@ -130,5 +203,5 @@ test "example" {
     const result = try run(example, std.testing.allocator);
     print("Result: {any}\n", .{result});
     try std.testing.expectEqual(@as(u64, 6440), result.part1);
-    try std.testing.expectEqual(@as(u64, 0), result.part2);
+    try std.testing.expectEqual(@as(u64, 5905), result.part2);
 }
