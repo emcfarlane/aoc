@@ -87,11 +87,16 @@ fn run(src: []const u8, allocator: std.mem.Allocator, part: Part) !Result {
         defer shortcuts.deinit();
         var queue = std.PriorityQueue(Item, void, compareItem).init(allocator, {});
         defer queue.deinit();
-        for (startNodes.items) |node| {
-            try queue.add(Item{ .name = node, .steps = 0 });
+        for (startNodes.items, 0..) |node, index| {
+            try queue.add(Item{ .index = index, .name = node, .steps = 0 });
         }
+        var i: u64 = 0;
         while (true) {
             var item: Item = queue.remove();
+            if (item.steps - i > 1000000000) {
+                print("{d}\n", .{item.steps});
+                i = item.steps;
+            }
             //print("Looking at {any}\n", .{item});
             var iter = queue.iterator();
             var isEnd = item.name[2] == 'Z';
@@ -113,7 +118,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator, part: Part) !Result {
             if (shortcut) |s| {
                 item.steps += s.steps;
                 item.name = s.name;
-                //print("Shortcut {any}\n", .{item});
+                //print("{d}:{s}:{d}\n", .{ item.index, item.name, item.steps });
                 try queue.add(item);
                 continue;
             }
@@ -134,7 +139,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator, part: Part) !Result {
                     break;
                 }
             }
-            print("Adding back {s} {d}\n", .{ item.name, item.steps });
+            //print("{d}:{s}:{d}\n", .{ item.index, item.name, item.steps });
             try queue.add(item);
             if (startItem.name[2] == 'Z') {
                 const key = ShortcutKey{ .name = startItem.name, .instruction = ins[startItem.steps % ins.len] };
@@ -149,6 +154,7 @@ fn run(src: []const u8, allocator: std.mem.Allocator, part: Part) !Result {
 }
 
 const Item = struct {
+    index: usize,
     name: []const u8,
     steps: u64,
 };
